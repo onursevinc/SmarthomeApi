@@ -1,0 +1,83 @@
+{
+  "name": "SmartHomeApi",
+  "version": "0.0.1",
+  "description": "Smart Home Api",
+  "author": "",
+  "license": "MIT",
+  "scripts": {
+    "build": "SET NODE_ENV=production&&tsc -p tsconfig.build.json",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "start": "ts-node -r tsconfig-paths/register src/main.ts",
+    "start:dev": "NODE_ENV=development&&nodemon",
+    "start:debug": "SET NODE_ENV=development&&nodemon --config nodemon-debug.json",
+    "prestart:prod": "rimraf dist && tsc",
+    "postinstall": "npm run prestart:prod",
+    "start:prod": "node dist/main.js",
+    "lint": "tslint -p tsconfig.json -c tslint.json",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "test:cov": "jest --coverage",
+    "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",
+    "test:e2e": "jest --config ./test/jest-e2e.json"
+  },
+  "dependencies": {
+    "@nestjs/common": "^6.1.1",
+    "@nestjs/core": "^6.1.1",
+    "@nestjs/jwt": "^6.0.0",
+    "@nestjs/mongoose": "^6.1.2",
+    "@nestjs/passport": "^6.0.0",
+    "@nestjs/platform-express": "^6.1.1",
+    "@nestjs/platform-socket.io": "^6.1.0",
+    "@nestjs/swagger": "^3.0.2",
+    "@nestjs/websockets": "^6.1.1",
+    "bcrypt": "^3.0.6",
+    "dotenv": "^7.0.0",
+    "joi": "^14.3.1",
+    "mongoose": "^5.5.3",
+    "mqtt": "^2.18.8",
+    "npm-check-updates": "^3.1.8",
+    "passport": "^0.4.0",
+    "passport-jwt": "^4.0.0",
+    "reflect-metadata": "^0.1.13",
+    "rimraf": "^2.6.3",
+    "rxjs": "^6.5.1",
+    "swagger-ui-express": "^4.0.2",
+    "typescript": "^3.4.5"
+  },
+  "devDependencies": {
+    "@nestjs/testing": "^6.1.1",
+    "@types/dotenv": "^6.1.1",
+    "@types/express": "^4.16.1",
+    "@types/jest": "^24.0.11",
+    "@types/joi": "^14.3.3",
+    "@types/node": "^11.13.7",
+    "@types/socket.io": "^2.1.2",
+    "@types/supertest": "^2.0.7",
+    "jest": "^24.7.1",
+    "nodemon": "^1.18.11",
+    "prettier": "^1.17.0",
+    "supertest": "^4.0.2",
+    "ts-jest": "^24.0.2",
+    "ts-loader": "^5.4.3",
+    "ts-node": "^8.1.0",
+    "tsconfig-paths": "^3.8.0",
+    "tslint": "5.16.0"
+  },
+  "engines": {
+    "node": "10.3.0"
+  },
+  "jest": {
+    "moduleFileExtensions": [
+      "js",
+      "json",
+      "ts"
+    ],
+    "rootDir": "src",
+    "testRegex": ".spec.ts$",
+    "transform": {
+      "^.+\\.(t|j)s$": "ts-jest"
+    },
+    "coverageDirectory": "../coverage",
+    "testEnvironment": "node"
+  }
+}

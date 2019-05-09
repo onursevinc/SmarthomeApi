@@ -8,7 +8,7 @@ import { DevicesProvider } from './devices.provider';
 import { DatabaseModule } from '../../database/database.module';
 import { JWT_SECRET_KEY } from '../../constants';
 import { DevicesGateway } from './devices.gateway';
-import { UsersModule } from 'dist/src/api/users/users.module';
+import { UsersModule } from '../users/users.module';
 
 @Module({
     imports: [

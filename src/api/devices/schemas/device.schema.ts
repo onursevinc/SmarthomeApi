@@ -9,12 +9,14 @@ const device = new mongoose.Schema({
     token: String,
     data: DeviceDataType,
     status: Boolean,
+    session: String,
     created_at: {type: Date, default: Date.now()},
     updated_at: {type: Date, default: Date.now},
 });
 
 device.pre('save', (next) => {
     const currentDate = new Date();
+    this.session = '',
     this.updated_at = currentDate;
     next();
 });

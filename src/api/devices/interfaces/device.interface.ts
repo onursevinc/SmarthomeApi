@@ -1,4 +1,4 @@
-import {Document} from 'mongoose';
+import { Document } from 'mongoose';
 
 export interface DeviceDataType {
     _id: number;
@@ -7,13 +7,14 @@ export interface DeviceDataType {
 }
 
 export interface Device extends Document {
-    readonly _id: number;
-    name: string;
-    location: string;
-    type: string;
-    token: string;
-    data: DeviceDataType;
-    status: boolean;
-    readonly created_at: Date;
-    readonly updated_at: Date;
+    _id?: number;
+    name?: string;
+    location?: string;
+    type?: string;
+    token?: string;
+    data?: DeviceDataType;
+    status?: boolean;
+    session?: string;
+    created_at?: Date;
+    updated_at?: Date;
 }

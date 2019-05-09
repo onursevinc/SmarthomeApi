@@ -21,7 +21,7 @@ export class DevicesController {
 
     @Get(':id')
     @UseGuards(AuthGuard('jwt'))
-    async find(@Request() req): Promise<Device> {
+    async find(@Param() req): Promise<Device> {
         const id = req.params.id;
         if (!id) {
             throw new HttpException('ID parameter is missing', HttpStatus.BAD_REQUEST);
@@ -38,7 +38,7 @@ export class DevicesController {
     @ApiOperation({title: 'Create Device'})
     @ApiResponse({status: 201, description: 'Object created.'})
     @ApiResponse({status: 400, description: 'Validation failed.'})
-    async create(@Body() body: Device, @Res() res: Response): Promise<void> {
+    async create(@Body() body: DeviceDto, @Res() res: Response): Promise<void> {
         if (!body || (body && Object.keys(body).length === 0)) {
             throw new HttpException('Missing informations', HttpStatus.BAD_REQUEST);
         }
@@ -47,16 +47,16 @@ export class DevicesController {
         res.status(result ? HttpStatus.OK : HttpStatus.BAD_REQUEST).send(result);
     }
 
-    @Put()
+    @Put(':id')
     @UseGuards(AuthGuard('jwt'))
     @ApiOperation({title: 'Update Device'})
     @ApiResponse({status: 201, description: 'Object updated.'})
-    async update(@Body() body: Device, @Res() res: Response): Promise<void> {
+    async update(@Param() params, @Body() body: Device, @Res() res: Response): Promise<void> {
         if (!body || (body && Object.keys(body).length === 0)) {
             throw new HttpException('Missing informations', HttpStatus.BAD_REQUEST);
         }
 
-        const result = await this.devicesService.update(body._id, body);
+        const result = await this.devicesService.update(params.params.id, body);
         res.status(result ? HttpStatus.OK : HttpStatus.BAD_REQUEST).send(result);
     }
 
@@ -65,8 +65,8 @@ export class DevicesController {
     @ApiOperation({title: 'Delete Device'})
     @ApiResponse({status: 201, description: 'Object deleted.'})
     @ApiResponse({status: 400, description: 'Validation failed.'})
-    public async delete(@Request() req, @Res() res: Response): Promise<void> {
-        const id = req.params.id;
+    public async delete(@Param() params, @Res() res: Response): Promise<void> {
+        const id = params.params.id;
         if (!id) {
             throw new HttpException('ID parameter is missing', HttpStatus.BAD_REQUEST);
         }

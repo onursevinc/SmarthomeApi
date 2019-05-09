@@ -1,16 +1,22 @@
-import {UseFilters, UseInterceptors} from '@nestjs/common';
-import {OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer} from '@nestjs/websockets';
-import {WsExceptionsHandler} from '@nestjs/websockets/exceptions/ws-exceptions-handler';
-import {Namespace, Socket} from 'socket.io';
+import { UseFilters, UseInterceptors } from '@nestjs/common';
+import { OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
+import { WsExceptionsHandler } from '@nestjs/websockets/exceptions/ws-exceptions-handler';
+import { Namespace, Socket } from 'socket.io';
 
-import {TransformInterceptor} from './transform.interceptor';
-import {DevicesService} from './devices.service';
+import { TransformInterceptor } from './transform.interceptor';
+import { DevicesService } from './devices.service';
+import { UsersService } from '../users/users.service';
 
 enum SocketEventType {
     CONNECT = 'connect',
     DISCONNECT = 'disconnect',
     DEVICE = 'device',
     STATUS = 'status',
+}
+
+enum ClientTypes {
+    DEVICE = "device",
+    OPERATOR = 'operator'
 }
 
 interface DeviceMessage {
@@ -33,76 +39,80 @@ export class DevicesGateway implements OnGatewayConnection, OnGatewayDisconnect 
 
     connections: DeviceClient[] = [];
 
-    constructor(private readonly devicesService: DevicesService) {
+    constructor(private devicesService: DevicesService, private userService: UsersService) {
     }
 
     @UseInterceptors(new TransformInterceptor())
-    async handleConnection(client: Socket) {
-        const connectedDeviceToken = client.handshake.query.token;
-        const connectedDeviceType = client.handshake.query.type;
-        if (connectedDeviceToken) {
-            const isConnected = this.connections.find(item => item.token === connectedDeviceToken);
-            const device = await this.devicesService.findByToken(connectedDeviceToken);
+    async handleConnection(socket: Socket) {
+        const client = {
+            token: socket.handshake.query.token,
+            type: socket.handshake.query.type
+        };
+        console.log(JSON.stringify({ client }, null, 2));
+        if (client.token && client.type) {
+            if (client.type === ClientTypes.DEVICE) {
+                const device = await this.devicesService.findByToken(client.token);
+                if (device) {
+                    const $client = this.io.sockets.connected[device.session];
+                    if ($client) { $client[device.session].disconnect(); }
+                    await this.devicesService.update(device._id, { status: true, session: socket.client.id });
 
-            if (device) {
-                delete device.data._id;
-                device.status = true;
-                await this.devicesService.update(device._id, device);
-                this.io.emit(SocketEventType.CONNECT, {
-                    token: device.token,
-                    data: device.data,
-                    event: SocketEventType.CONNECT,
-                    emitter: 'io',
-                } as DeviceMessage);
+                    this.io.emit(SocketEventType.CONNECT, { token: device.token, data: device.data, event: SocketEventType.CONNECT, emitter: 'io' } as DeviceMessage);
+
+                    console.log({ $client, 'clients': $client[device.session] });
+                    console.log(JSON.stringify({ device }, null, 2));
+                    console.log('-------------------------------------------');
+
+                    return true;
+                } else {
+                    socket.disconnect();
+                }
             }
 
-            if (isConnected) {
-                const index = this.connections.findIndex(item => item.token === connectedDeviceToken);
-                this.connections.splice(index, 1);
+            if (client.type === ClientTypes.OPERATOR) {
+                const user = await this.userService.findById(client.token);
+                if (user) {
+                    const $client = this.io.connected[user.session];
+                    if ($client) { $client[user.session].disconnect(); }
+                    await this.userService.update(user._id, { session: socket.client.id });
+                    return true;
+
+                } else {
+                    socket.disconnect();
+                }
             }
-            this.connections.push({
-                clientId: client.client.id,
-                token: connectedDeviceToken,
-                deviceType: connectedDeviceType,
-            } as DeviceClient);
         }
-
-        console.log('handleConnection: ', this.connections);
-        console.log('===================================================');
+        else {
+            socket.disconnect();
+        }
     }
 
     @UseInterceptors(new TransformInterceptor())
-    async handleDisconnect(client: Socket) {
-        const connectedDeviceToken = client.handshake.query.token;
-        const connectedDeviceType = client.handshake.query.type;
+    async handleDisconnect(socket: Socket) {
+        const client = {
+            token: socket.handshake.query.token,
+            type: socket.handshake.query.type
+        };
 
-        const index = this.connections.findIndex(item => item.token === connectedDeviceToken);
-        if (index) {
+        if (client.token && client.type) {
+            if (client.type === ClientTypes.DEVICE) {
+                const device = await this.devicesService.findByToken(client.token);
+                if (device) {
+                    await this.devicesService.update(device._id, { status: false, session: socket.client.id });
 
-            const device = await this.devicesService.findByToken(this.connections[index].token);
-            if (device) {
-                delete device.data._id;
-                device.status = false;
-                await this.devicesService.update(device._id, device);
-                this.io.emit(SocketEventType.STATUS, {
-                    token: device.token,
-                    data: device.data,
-                    event: SocketEventType.DISCONNECT,
-                    emitter: 'io',
-                } as DeviceMessage);
+                    this.io.emit(SocketEventType.DISCONNECT, { token: device.token, data: device.data, event: SocketEventType.CONNECT, emitter: 'io' } as DeviceMessage);
+
+                    return true;
+                }
             }
-            this.connections.splice(index, 1);
         }
-
-        console.log('handleDisconnect: ', this.connections[index]);
-        console.log('===================================================');
     }
 
     @SubscribeMessage(SocketEventType.CONNECT)
     async onConnect(client: Socket, message: DeviceMessage) {
         message.event = SocketEventType.CONNECT;
         message.emitter = 'client,io';
-        console.log('this.connections: ', this.connections, message);
+
         client.emit(SocketEventType.CONNECT, message);
         this.io.emit(SocketEventType.CONNECT, message);
     }
@@ -127,8 +137,6 @@ export class DevicesGateway implements OnGatewayConnection, OnGatewayDisconnect 
             message.emitter = 'broadcast';
             client.broadcast.emit(SocketEventType.DEVICE, message);
         }
-        console.log('Handle Device Channel: ', this.connections, message);
-        console.log('===================================================');
         // client.emit(SocketEventType.DEVICE, {clientId: client.id, message});
         // this.io.emit(SocketEventType.DEVICE, {ioId: 'io', message});
     }
@@ -147,6 +155,5 @@ export class DevicesGateway implements OnGatewayConnection, OnGatewayDisconnect 
         message.emitter = 'io';
         console.log(SocketEventType.STATUS, message);
         this.io.emit(SocketEventType.STATUS, message);
-        console.log('===================================================');
     }
 }

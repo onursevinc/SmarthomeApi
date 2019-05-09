@@ -21,6 +21,9 @@ export class DeviceDto {
     status: boolean;
 
     @ApiModelProperty()
+    session: string;
+
+    @ApiModelProperty()
     readonly created_at: Date;
 
     @ApiModelProperty()

@@ -18,6 +18,9 @@ export class UserDto {
     readonly admin?: boolean;
 
     @ApiModelProperty()
+    session: string;
+
+    @ApiModelProperty()
     type: UserType;
 
     @ApiModelProperty()

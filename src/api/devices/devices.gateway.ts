@@ -53,14 +53,20 @@ export class DevicesGateway implements OnGatewayConnection, OnGatewayDisconnect 
             if (client.type === ClientTypes.DEVICE) {
                 const device = await this.devicesService.findByToken(client.token);
                 if (device) {
+                    console.log('Session: ', device.session);
+                    console.log('Connected: ');
+                    Object.keys(this.io.sockets.connected).forEach((item, index) => {
+                        console.log('item: ', item);
+                    });
                     const $client = this.io.sockets.connected[device.session];
-                    if ($client) { $client[device.session].disconnect(); }
+                    if ($client) { $client.disconnect(); }
                     await this.devicesService.update(device._id, { status: true, session: socket.client.id });
 
                     this.io.emit(SocketEventType.CONNECT, { token: device.token, data: device.data, event: SocketEventType.CONNECT, emitter: 'io' } as DeviceMessage);
-
-                    console.log({ $client, 'clients': $client[device.session] });
-                    console.log(JSON.stringify({ device }, null, 2));
+                    console.log('New Connected: ');
+                    Object.keys(this.io.sockets.connected).forEach((item, index) => {
+                        console.log('item: ', item);
+                    });
                     console.log('-------------------------------------------');
 
                     return true;
@@ -73,7 +79,7 @@ export class DevicesGateway implements OnGatewayConnection, OnGatewayDisconnect 
                 const user = await this.userService.findById(client.token);
                 if (user) {
                     const $client = this.io.connected[user.session];
-                    if ($client) { $client[user.session].disconnect(); }
+                    if ($client) { $client.disconnect(); }
                     await this.userService.update(user._id, { session: socket.client.id });
                     return true;
 
@@ -98,7 +104,7 @@ export class DevicesGateway implements OnGatewayConnection, OnGatewayDisconnect 
             if (client.type === ClientTypes.DEVICE) {
                 const device = await this.devicesService.findByToken(client.token);
                 if (device) {
-                    await this.devicesService.update(device._id, { status: false, session: socket.client.id });
+                    await this.devicesService.update(device._id, { status: false });
 
                     this.io.emit(SocketEventType.DISCONNECT, { token: device.token, data: device.data, event: SocketEventType.CONNECT, emitter: 'io' } as DeviceMessage);
 

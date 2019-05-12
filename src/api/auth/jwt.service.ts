@@ -7,6 +7,7 @@ import {UsersService} from '../users/users.service';
 import {User} from '../users/interfaces/user.interface';
 import {JWT_SECRET_KEY} from '../../constants';
 import {Tokens} from './interfaces/tokens.interface';
+import { UserDto } from '../users/dto/user.dto';
 
 @Injectable()
 export class JwtService {
@@ -19,10 +20,10 @@ export class JwtService {
      * @param {User} user - The user to create the payload for the JWT
      * @returns {Promise} tokens - The access and the refresh token
      */
-    async generateToken(user: User): Promise<Tokens> {
+    async generateToken(user: UserDto): Promise<Tokens> {
         const payload = {
             sub: {
-                _id: user._id,
+                // _id: user._id,
                 email: user.email,
                 username: user.username,
             },

@@ -1,23 +1,36 @@
 import {Schema} from 'mongoose';
+import {randomStringGenerator} from '@nestjs/common/utils/random-string-generator.util';
 
 const user = new Schema({
-    name: String,
+    name: {type: String, required: false},
     username: {type: String, required: true, unique: true},
     email: {type: String, required: true},
-    admin: Boolean,
-    session: String,
+    admin: {type: Boolean, required: false},
+    session: {type: String, required: false, unique: true},
     type: {type: String, required: true},
     password: {type: String, required: true},
-    created_at: {type: Date, default: Date.now},
-    updated_at: {type: Date, default: Date.now},
+    created: {type: Date, default: Date.now},
+    updated: {type: Date, default: Date.now},
 });
 
 /**
  * On every save, add the date
  */
-user.pre('save', (next) => {
+user.pre('save', function(next) {
     const currentDate = new Date();
-    this.updated_at = currentDate;
+    this.session = (Date.now().toString(36) + Math.random().toString(36).substr(2, 5)).toUpperCase();
+    this.updated = currentDate;
+    next();
+});
+
+user.pre('findOneAndUpdate', function(next) {
+    this.updated = new Date();
+    console.log('User findByIdAndUpdate');
+    next();
+});
+
+user.pre('findByIdAndRemove', function(next) {
+    console.log('User findByIdAndUpdate', this);
     next();
 });
 
@@ -33,8 +46,8 @@ user.methods.serialize = (d) => {
         admin: d.admin,
         session: d.session,
         type: d.type,
-        created_at: d.created_at,
-        updated_at: d.updated_at,
+        created: d.created,
+        updated: d.updated,
     };
 };
 

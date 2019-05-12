@@ -1,11 +1,13 @@
-import { UseFilters, UseInterceptors } from '@nestjs/common';
-import { OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
-import { WsExceptionsHandler } from '@nestjs/websockets/exceptions/ws-exceptions-handler';
-import { Namespace, Socket } from 'socket.io';
+import {UseFilters, UseInterceptors} from '@nestjs/common';
+import {OnGatewayConnection, OnGatewayDisconnect, SubscribeMessage, WebSocketGateway, WebSocketServer, WsResponse} from '@nestjs/websockets';
+import {WsExceptionsHandler} from '@nestjs/websockets/exceptions/ws-exceptions-handler';
+import {randomStringGenerator} from '@nestjs/common/utils/random-string-generator.util';
+import {Namespace, Socket} from 'socket.io';
 
-import { TransformInterceptor } from './transform.interceptor';
-import { DevicesService } from './devices.service';
-import { UsersService } from '../users/users.service';
+import {TransformInterceptor} from './transform.interceptor';
+import {DevicesService} from './devices.service';
+import {MyLogger} from '../logger/logger.service';
+import {UsersService} from '../users/users.service';
 
 enum SocketEventType {
     CONNECT = 'connect',
@@ -14,152 +16,158 @@ enum SocketEventType {
     STATUS = 'status',
 }
 
-enum ClientTypes {
-    DEVICE = "device",
-    OPERATOR = 'operator'
+enum SocketTypes {
+    DEVICE = 'device',
+    OPERATOR = 'operator',
 }
 
-interface DeviceMessage {
+interface SocketMessage {
     token: string;
     data: any;
     event?: SocketEventType;
     emitter?: string;
 }
 
-interface DeviceClient {
+interface SocketClient {
     token: string;
     clientId: string;
-    deviceType: string;
+    type: string;
 }
+
+const log = new MyLogger();
 
 @UseFilters(new WsExceptionsHandler())
 @WebSocketGateway(/*{namespace: 'socket'}*/)
 export class DevicesGateway implements OnGatewayConnection, OnGatewayDisconnect {
     @WebSocketServer() public readonly io: Namespace;
 
-    connections: DeviceClient[] = [];
+    socketClients: SocketClient[] = [];
 
-    constructor(private devicesService: DevicesService, private userService: UsersService) {
+    constructor(private readonly devicesService: DevicesService, private readonly usersService: UsersService) {
     }
 
     @UseInterceptors(new TransformInterceptor())
-    async handleConnection(socket: Socket) {
-        const client = {
-            token: socket.handshake.query.token,
-            type: socket.handshake.query.type
-        };
-        console.log(JSON.stringify({ client }, null, 2));
-        if (client.token && client.type) {
-            if (client.type === ClientTypes.DEVICE) {
-                const device = await this.devicesService.findByToken(client.token);
-                if (device) {
-                    console.log('Session: ', device.session);
-                    console.log('Connected: ');
-                    Object.keys(this.io.sockets.connected).forEach((item, index) => {
-                        console.log('item: ', item);
-                    });
-                    const $client = this.io.sockets.connected[device.session];
-                    if ($client) { $client.disconnect(); }
-                    await this.devicesService.update(device._id, { status: true, session: socket.client.id });
+    async handleConnection(socket: Socket, data: unknown) {
+        const query = socket.handshake.query;
+        try {
+            if (query.token && query.type) {
+                switch (query.type) {
+                    case SocketTypes.DEVICE: {
+                        const device = await this.devicesService.findByToken(query.token);
+                        if (device) {
+                            if (device.session !== socket.client.id) {
+                                const connectedDevice: Socket = this.io.sockets.connected[device.session];
+                                if (connectedDevice) {
+                                    log.debug('SocketOnConnect', `${connectedDevice.client.id} is connected !`);
+                                    connectedDevice.disconnect();
+                                }
+                            }
+                            await this.devicesService.update(device._id, {status: true, session: socket.client.id});
 
-                    this.io.emit(SocketEventType.CONNECT, { token: device.token, data: device.data, event: SocketEventType.CONNECT, emitter: 'io' } as DeviceMessage);
-                    console.log('New Connected: ');
-                    Object.keys(this.io.sockets.connected).forEach((item, index) => {
-                        console.log('item: ', item);
-                    });
-                    console.log('-------------------------------------------');
-
-                    return true;
-                } else {
-                    socket.disconnect();
+                            log.debug('SocketOnConnect', `${device.name} connected - id: ${socket.client.id} - devices: ${Object.keys(this.io.sockets.connected)}`);
+                            this.io.send({event: SocketEventType.CONNECT, token: device.token, data: device.data, emitter: 'io'} as SocketMessage);
+                            this.io.emit(SocketEventType.STATUS, {
+                                event: SocketEventType.CONNECT,
+                                token: device.token,
+                                data: device.data,
+                                emitter: 'io',
+                            } as SocketMessage);
+                        } else {
+                            socket.disconnect();
+                            throw new Error(`Device not found. ${socket.client.id} disconnect !`);
+                        }
+                        break;
+                    }
+                    case SocketTypes.OPERATOR: {
+                        const user = await this.usersService.findById(query.token);
+                        if (user) {
+                            if (user.session !== socket.client.id) {
+                                const connectedUser: Socket = this.io.sockets.connected[user.session];
+                                if (connectedUser) {
+                                    log.debug('SocketOnConnect', `${connectedUser.client.id} is connected !`);
+                                    connectedUser.disconnect();
+                                }
+                            }
+                            log.debug('SocketOnConnect', `${user.name} connected - id: ${socket.client.id} - users: ${Object.keys(this.io.sockets.connected)}`);
+                            this.io.send({event: SocketEventType.CONNECT, token: user.session, data: user, emitter: 'io'} as SocketMessage);
+                            this.io.emit(SocketEventType.STATUS, {
+                                event: SocketEventType.CONNECT,
+                                token: user.session,
+                                data: user,
+                                emitter: 'io',
+                            } as SocketMessage);
+                        } else {
+                            socket.disconnect();
+                            throw new Error(`User not found. ${socket.client.id} disconnect !`);
+                        }
+                        break;
+                    }
+                    default: {
+                        socket.disconnect();
+                        throw new Error(`Type not found. ${socket.client.id} disconnect !`);
+                    }
                 }
+            } else {
+                socket.disconnect();
+                throw new Error(`Token or Type not found. ${socket.client.id} disconnect !`);
             }
-
-            if (client.type === ClientTypes.OPERATOR) {
-                const user = await this.userService.findById(client.token);
-                if (user) {
-                    const $client = this.io.connected[user.session];
-                    if ($client) { $client.disconnect(); }
-                    await this.userService.update(user._id, { session: socket.client.id });
-                    return true;
-
-                } else {
-                    socket.disconnect();
-                }
-            }
-        }
-        else {
-            socket.disconnect();
+        } catch (error) {
+            log.error('SocketException', `${error}`);
+            socket.send(error);
         }
     }
 
     @UseInterceptors(new TransformInterceptor())
     async handleDisconnect(socket: Socket) {
-        const client = {
-            token: socket.handshake.query.token,
-            type: socket.handshake.query.type
-        };
-
-        if (client.token && client.type) {
-            if (client.type === ClientTypes.DEVICE) {
-                const device = await this.devicesService.findByToken(client.token);
-                if (device) {
-                    await this.devicesService.update(device._id, { status: false });
-
-                    this.io.emit(SocketEventType.DISCONNECT, { token: device.token, data: device.data, event: SocketEventType.CONNECT, emitter: 'io' } as DeviceMessage);
-
-                    return true;
-                }
+        const query = socket.handshake.query;
+        if (query.token) {
+            const device = await this.devicesService.findByToken(query.token);
+            if (device) {
+                await this.devicesService.update(device._id, {status: false});
+                const message: SocketMessage = {
+                    event: SocketEventType.DISCONNECT,
+                    token: device.token,
+                    data: device.data,
+                    emitter: 'io',
+                } as SocketMessage;
+                this.io.emit(SocketEventType.STATUS, message);
+                log.debug('SocketOnDisConnect', {device});
+                return {type: SocketEventType.DISCONNECT, message};
             }
         }
     }
 
     @SubscribeMessage(SocketEventType.CONNECT)
-    async onConnect(client: Socket, message: DeviceMessage) {
-        message.event = SocketEventType.CONNECT;
-        message.emitter = 'client,io';
-
-        client.emit(SocketEventType.CONNECT, message);
-        this.io.emit(SocketEventType.CONNECT, message);
+    onConnect(client: Socket, message: SocketMessage): WsResponse<any> {
+        const msg: SocketMessage = {event: SocketEventType.CONNECT, token: message.token, data: message.data, emitter: 'client'} as SocketMessage;
+        client.emit(SocketEventType.CONNECT, msg);
+        return {event: SocketEventType.CONNECT, data: message};
     }
 
     @SubscribeMessage(SocketEventType.DEVICE)
-    async onDevice(client: Socket, message: DeviceMessage) {
+    async onDevice(client: Socket, message: SocketMessage) {
         message.event = SocketEventType.DEVICE;
         if (message) {
             const device = await this.devicesService.findByToken(message.token);
             if (device) {
-                delete device.data._id;
-                device.data = message.data;
-                await this.devicesService.update(device._id, device);
+                await this.devicesService.update(device._id, {data: message.data});
+                this.io.to(device.session).emit(SocketEventType.DEVICE, message);
             }
         }
-
-        const connectedDevice = this.connections.find(item => item.token === message.token);
-        if (connectedDevice) {
-            message.emitter = 'io';
-            this.io.to(connectedDevice.clientId).emit(SocketEventType.DEVICE, message);
-        } else {
-            message.emitter = 'broadcast';
-            client.broadcast.emit(SocketEventType.DEVICE, message);
-        }
-        // client.emit(SocketEventType.DEVICE, {clientId: client.id, message});
-        // this.io.emit(SocketEventType.DEVICE, {ioId: 'io', message});
+        return {message};
     }
 
     @SubscribeMessage(SocketEventType.STATUS)
-    async onStatus(client: Socket, message: DeviceMessage) {
+    async onStatus(client: Socket, message: SocketMessage) {
         message.event = SocketEventType.STATUS;
         if (message) {
             const device = await this.devicesService.findByToken(message.token);
             if (device) {
-                device.data = message.data;
-                await this.devicesService.update(device._id, device);
+                await this.devicesService.update(device._id, {data: message.data});
+                message.emitter = 'io';
+                this.io.emit(SocketEventType.STATUS, message);
             }
         }
-
-        message.emitter = 'io';
-        console.log(SocketEventType.STATUS, message);
-        this.io.emit(SocketEventType.STATUS, message);
+        return {message};
     }
 }

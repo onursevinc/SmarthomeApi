@@ -37,6 +37,14 @@ export class UsersService {
         return user;
     }
 
+    async findByToken(token: string): Promise<User | null> {
+        let user = await this.usersModel.findOne({token}).exec();
+        if (user) {
+            user = user.schema.methods.serialize(user);
+        }
+        return user;
+    }
+
     async findOne(options: any, fields?: any, isSerialized?: boolean): Promise<User | null> {
         let user = await this.usersModel.findOne(options, fields).exec();
         if (user && isSerialized) {
@@ -45,7 +53,7 @@ export class UsersService {
         return user;
     }
 
-    async update(id: string, newValue: User): Promise<User | null> {
+    async update(id: number, newValue: User): Promise<User | null> {
         return await this.usersModel.findByIdAndUpdate(id, newValue).exec();
     }
 

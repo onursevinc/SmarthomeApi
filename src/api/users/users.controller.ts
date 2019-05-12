@@ -1,11 +1,10 @@
-import {Controller, Get, Post, Delete, Body, Request, HttpException, HttpStatus, Put, UseGuards, Res} from '@nestjs/common';
-import {ApiResponse, ApiOperation} from '@nestjs/swagger';
-import {Response} from 'express';
+import { Controller, Get, Post, Delete, Body, Request, Param, HttpException, HttpStatus, Put, UseGuards, Res } from '@nestjs/common';
+import { ApiResponse, ApiOperation, ApiOkResponse, ApiResponseModelProperty } from '@nestjs/swagger';
+import { Response } from 'express';
 
-import {AuthGuard} from '@nestjs/passport';
-import {UsersService} from './users.service';
-import {User} from './interfaces/user.interface';
-import {UserDto} from './dto/user.dto';
+import { AuthGuard } from '@nestjs/passport';
+import { UsersService } from './users.service';
+import { UserDto } from './dto/user.dto';
 
 @Controller('users')
 export class UsersController {
@@ -14,12 +13,20 @@ export class UsersController {
 
     @Get()
     @UseGuards(AuthGuard('jwt'))
-    async index(): Promise<User[]> {
-        return await this.usersService.findAll();
+    @ApiOperation({ title: 'Get Users' })
+    @ApiResponse({ status: 201, description: 'Object created.', type: UserDto, isArray: true })
+    @ApiResponse({ status: 400, description: 'Validation failed.' })
+    async index(@Res() res: Response): Promise<void> {
+        const users =  await this.usersService.findAll();
+        res.status(users ? HttpStatus.OK : HttpStatus.BAD_REQUEST).send(users);
     }
 
     @Get(':id')
-    async show(@Request() req): Promise<User> {
+    @UseGuards(AuthGuard('jwt'))
+    @ApiOperation({ title: 'Get User' })
+    @ApiResponse({ status: 201, description: 'Object created.', type: UserDto })
+    @ApiResponse({ status: 400, description: 'Validation failed.' })
+    async show(@Request() req, @Res() res: Response): Promise<void> {
         const id = req.params.id;
         if (!id) {
             throw new HttpException('ID parameter is missing', HttpStatus.BAD_REQUEST);
@@ -28,14 +35,14 @@ export class UsersController {
         if (!user) {
             throw new HttpException(`The user with the id: ${id} does not exists`, HttpStatus.BAD_REQUEST);
         }
-        return user;
+        res.status(user ? HttpStatus.OK : HttpStatus.BAD_REQUEST).send(user);
     }
 
     @Post()
     @UseGuards(AuthGuard('jwt'))
-    @ApiOperation({title: 'Create User'})
-    @ApiResponse({status: 201, description: 'Object created.'})
-    @ApiResponse({status: 400, description: 'Validation failed.'})
+    @ApiOperation({ title: 'Create User' })
+    @ApiResponse({ status: 201, description: 'Object created.', type: UserDto })
+    @ApiResponse({ status: 400, description: 'Validation failed.' })
     async create(@Body() body: UserDto, @Res() res: Response): Promise<void> {
         if (!body || (body && Object.keys(body).length === 0)) {
             throw new HttpException('Missing informations', HttpStatus.BAD_REQUEST);
@@ -45,29 +52,27 @@ export class UsersController {
         res.status(result ? HttpStatus.OK : HttpStatus.BAD_REQUEST).send(result);
     }
 
-    @Put()
+    @Put(':id')
     @UseGuards(AuthGuard())
-    @ApiOperation({title: 'Update User'})
-    @ApiResponse({status: 201, description: 'Object updated.'})
-    @ApiResponse({status: 400, description: 'Validation failed.'})
-    async update(@Body() body: User, @Res() res: Response): Promise<void> {
+    @ApiOperation({ title: 'Update User' })
+    @ApiResponse({ status: 201, description: 'Object updated.', type: UserDto })
+    @ApiResponse({ status: 400, description: 'Validation failed.' })
+    async update(@Param() param, @Body() body: UserDto, @Res() res: Response): Promise<void> {
         if (!body || (body && Object.keys(body).length === 0)) {
             throw new HttpException('Missing informations', HttpStatus.BAD_REQUEST);
         }
 
-        delete body.updated_at;
-        delete body.created_at;
-        const result = await this.usersService.update(body._id, body);
+        const result = await this.usersService.update(param.id, body);
         res.status(result ? HttpStatus.OK : HttpStatus.BAD_REQUEST).send(result);
     }
 
     @Delete(':id')
     @UseGuards(AuthGuard('jwt'))
-    @ApiOperation({title: 'Delete User'})
-    @ApiResponse({status: 201, description: 'Object created.'})
-    @ApiResponse({status: 400, description: 'Validation failed.'})
-    public async delete(@Request() req, @Res() res: Response): Promise<void> {
-        const id = req.params.id;
+    @ApiOperation({ title: 'Delete User' })
+    @ApiResponse({ status: 201, description: 'Object created.' })
+    @ApiResponse({ status: 400, description: 'Validation failed.' })
+    public async delete(@Param() param, @Res() res: Response): Promise<void> {
+        const id = param.id;
         if (!id) {
             throw new HttpException('ID parameter is missing', HttpStatus.BAD_REQUEST);
         }

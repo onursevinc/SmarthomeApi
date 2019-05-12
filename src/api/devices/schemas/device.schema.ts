@@ -10,14 +10,25 @@ const device = new mongoose.Schema({
     data: DeviceDataType,
     status: Boolean,
     session: String,
-    created_at: {type: Date, default: Date.now()},
-    updated_at: {type: Date, default: Date.now},
+    created: {type: Date, default: Date.now()},
+    updated: {type: Date, default: Date.now},
 });
 
-device.pre('save', (next) => {
+device.pre('save', function(next) {
     const currentDate = new Date();
-    this.session = '',
-    this.updated_at = currentDate;
+    this.token = (Date.now().toString(36) + Math.random().toString(36).substr(2, 5)).toUpperCase();
+    this.updated = currentDate;
+    next();
+});
+
+device.pre('findOneAndUpdate', function(next) {
+    this.updated = new Date();
+    console.log('Device findByIdAndUpdate');
+    next();
+});
+
+device.pre('findByIdAndRemove', function(next) {
+    console.log('Device findByIdAndRemove');
     next();
 });
 

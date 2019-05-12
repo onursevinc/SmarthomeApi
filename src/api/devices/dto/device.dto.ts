@@ -24,8 +24,8 @@ export class DeviceDto {
     session: string;
 
     @ApiModelProperty()
-    readonly created_at: Date;
+    readonly created: Date;
 
     @ApiModelProperty()
-    readonly updated_at: Date;
+    readonly updated: Date;
 }
